@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../levels.h"
 #include "../slstatus.h"
 #include "../util.h"
 
@@ -19,6 +20,9 @@
 	#define POWER_SUPPLY_ENERGY   "/sys/class/power_supply/%s/energy_now"
 	#define POWER_SUPPLY_CURRENT  "/sys/class/power_supply/%s/current_now"
 	#define POWER_SUPPLY_POWER    "/sys/class/power_supply/%s/power_now"
+
+	extern const struct level battery_levels[];
+	extern const struct level charging_battery_levels[];
 
 	static const char *
 	pick(const char *bat, const char *f1, const char *f2, char *path,
@@ -111,6 +115,29 @@
 
 		return "";
 	}
+
+	const char *
+	battery_level(const char *bat) {
+		int cap_perc, i;
+		char path[PATH_MAX], state[12];
+
+		if (esnprintf(path, sizeof(path), POWER_SUPPLY_STATUS, bat) < 0)
+			return NULL;
+		if (pscanf(path, "%12[a-zA-Z ]", state) != 1)
+			return NULL;
+
+		if (esnprintf(path, sizeof(path), POWER_SUPPLY_CAPACITY, bat) < 0)
+			return NULL;
+		if (pscanf(path, "%d", &cap_perc) != 1)
+			return NULL;
+
+		if (!strcmp(state, "Charging"))
+			i = find_closest_level(charging_battery_levels, sizeof(*charging_battery_levels), cap_perc);
+		else
+			i = find_closest_level(battery_levels, sizeof(*battery_levels), cap_perc);
+		
+		return bprintf(i >= 0 ? battery_levels[i].fmt : "%d", cap_perc);
+	} 
 #elif defined(__OpenBSD__)
 	#include <fcntl.h>
 	#include <machine/apmvar.h>
