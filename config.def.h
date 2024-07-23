@@ -77,20 +77,22 @@ const struct level battery_levels[] = {
 	{20,       "\U000f007b %d%%"},
 	{10,       "\U000f007a %d%%"}
 };
+const size_t battery_levels_len = LEN(battery_levels);
 
 const struct level charging_battery_levels[] = {
 	/* level   format */
-	{100,      "\U000f0085"},
-	{90,       "\U000f008b"},
-	{80,       "\U000f008a"},
-	{70,       "\U000f089e"},
-	{60,       "\U000f0089"},
-	{50,       "\U000f089d"},
-	{40,       "\U000f0088"},
-	{30,       "\U000f0087"},
-	{20,       "\U000f0086"},
-	{10,       "\U000f089c"}
+	{100,      "\U000f0085 %d%%"},
+	{90,       "\U000f008b %d%%"},
+	{80,       "\U000f008a %d%%"},
+	{70,       "\U000f089e %d%%"},
+	{60,       "\U000f0089 %d%%"},
+	{50,       "\U000f089d %d%%"},
+	{40,       "\U000f0088 %d%%"},
+	{30,       "\U000f0087 %d%%"},
+	{20,       "\U000f0086 %d%%"},
+	{10,       "\U000f089c %d%%"}
 };
+const size_t charging_battery_levels_len = LEN(charging_battery_levels);
 
 const struct level wifi_levels[] = {
 	{100, "\U000f0928"},
@@ -99,6 +101,7 @@ const struct level wifi_levels[] = {
 	{25, "\U000f091f"}
 
 };
+const size_t wifi_levels_len = LEN(wifi_levels);
 
 static const struct arg args[] = {
 	/* function format          argument */
