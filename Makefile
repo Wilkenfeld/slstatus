@@ -4,7 +4,7 @@
 
 include config.mk
 
-REQ = util
+REQ = util levels
 COM =\
 	components/battery\
 	components/cat\

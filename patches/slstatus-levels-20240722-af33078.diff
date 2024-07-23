@@ -1,0 +1,201 @@
+From af330780d78b32538bc03510cf481a4a37e32162 Mon Sep 17 00:00:00 2001
+From: Wilkenfeld <pomiato.roberto@gmail.com>
+Date: Mon, 22 Jul 2024 18:55:00 +0200
+Subject: [PATCH] add levels support for battery
+
+---
+ Makefile             |  2 +-
+ components/battery.c | 27 +++++++++++++++++++++++++++
+ config.def.h         | 40 +++++++++++++++++++++++++++++++++++++++-
+ levels.c             | 19 +++++++++++++++++++
+ levels.h             | 12 ++++++++++++
+ slstatus.h           |  2 ++
+ 6 files changed, 100 insertions(+), 2 deletions(-)
+ create mode 100644 levels.c
+ create mode 100644 levels.h
+
+diff --git a/Makefile b/Makefile
+index 7a18274..11ad029 100644
+--- a/Makefile
++++ b/Makefile
+@@ -4,7 +4,7 @@
+ 
+ include config.mk
+ 
+-REQ = util
++REQ = util levels
+ COM =\
+ 	components/battery\
+ 	components/cat\
+diff --git a/components/battery.c b/components/battery.c
+index 1c753f9..0b120dc 100644
+--- a/components/battery.c
++++ b/components/battery.c
+@@ -2,6 +2,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ 
++#include "../levels.h"
+ #include "../slstatus.h"
+ #include "../util.h"
+ 
+@@ -20,6 +21,9 @@
+ 	#define POWER_SUPPLY_CURRENT  "/sys/class/power_supply/%s/current_now"
+ 	#define POWER_SUPPLY_POWER    "/sys/class/power_supply/%s/power_now"
+ 
++	extern const struct level battery_levels[];
++	extern const struct level charging_battery_levels[];
++
+ 	static const char *
+ 	pick(const char *bat, const char *f1, const char *f2, char *path,
+ 	     size_t length)
+@@ -111,6 +115,29 @@
+ 
+ 		return "";
+ 	}
++
++	const char *
++	battery_level(const char *bat) {
++		int cap_perc, i;
++		char path[PATH_MAX], state[12];
++
++		if (esnprintf(path, sizeof(path), POWER_SUPPLY_STATUS, bat) < 0)
++			return NULL;
++		if (pscanf(path, "%12[a-zA-Z ]", state) != 1)
++			return NULL;
++
++		if (esnprintf(path, sizeof(path), POWER_SUPPLY_CAPACITY, bat) < 0)
++			return NULL;
++		if (pscanf(path, "%d", &cap_perc) != 1)
++			return NULL;
++
++		if (!strcmp(state, "Charging"))
++			i = find_closest_level(charging_battery_levels, sizeof(*charging_battery_levels), cap_perc);
++		else
++			i = find_closest_level(battery_levels, sizeof(*battery_levels), cap_perc);
++		
++		return bprintf(i >= 0 ? battery_levels[i].fmt : "%d", cap_perc);
++	} 
+ #elif defined(__OpenBSD__)
+ 	#include <fcntl.h>
+ 	#include <machine/apmvar.h>
+diff --git a/config.def.h b/config.def.h
+index d805331..0d98fab 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -1,5 +1,5 @@
+ /* See LICENSE file for copyright and license details. */
+-
++#include "levels.h"
+ /* interval between updates (in ms) */
+ const unsigned int interval = 1000;
+ 
+@@ -63,7 +63,45 @@ static const char unknown_str[] = "n/a";
+  * wifi_essid          WiFi ESSID                      interface name (wlan0)
+  * wifi_perc           WiFi signal in percent          interface name (wlan0)
+  */
++
++const struct level battery_levels[] = {
++	/* level   format */
++	{100,      "\U000f0079 %d%%"},
++	{90,       "\U000f0082 %d%%"},
++	{80,       "\U000f0081 %d%%"},
++	{70,       "\U000f0080 %d%%"},
++	{60,       "\U000f007f %d%%"},
++	{50,       "\U000f007e %d%%"},
++	{40,       "\U000f007d %d%%"},
++	{30,       "\U000f007c %d%%"},
++	{20,       "\U000f007b %d%%"},
++	{10,       "\U000f007a %d%%"}
++};
++
++const struct level charging_battery_levels[] = {
++	/* level   format */
++	{100,      "\U000f0085"},
++	{90,       "\U000f008b"},
++	{80,       "\U000f008a"},
++	{70,       "\U000f089e"},
++	{60,       "\U000f0089"},
++	{50,       "\U000f089d"},
++	{40,       "\U000f0088"},
++	{30,       "\U000f0087"},
++	{20,       "\U000f0086"},
++	{10,       "\U000f089c"}
++};
++
++const struct level wifi_levels[] = {
++	{100, "\U000f0928"},
++	{75, "\U000f0925"},
++	{50, "\U000f0922"},
++	{25, "\U000f091f"}
++
++};
++
+ static const struct arg args[] = {
+ 	/* function format          argument */
+ 	{ datetime, "%s",           "%F %T" },
++	{ battery_level, "[%s]", "BAT0"},
+ };
+diff --git a/levels.c b/levels.c
+new file mode 100644
+index 0000000..613ce6e
+--- /dev/null
++++ b/levels.c
+@@ -0,0 +1,19 @@
++#include "levels.h"
++#include "util.h"
++
++int
++find_closest_level(const struct level levels[], const int len, const size_t value) {
++	int i = 0, closest = 0, found = 0;
++	while (i < len) {
++		if (levels[i].level >= value) {
++			if (levels[i].level <= levels[closest].level) {
++				found = 1;	
++				closest = i;
++			}
++		}
++
++		i++;
++	}
++
++	return found ? closest : -1;
++} 
+diff --git a/levels.h b/levels.h
+new file mode 100644
+index 0000000..176eea0
+--- /dev/null
++++ b/levels.h
+@@ -0,0 +1,12 @@
++#ifndef LEVELS_H
++#define LEVELS_H
++#include<stddef.h>
++
++struct level {
++	const size_t level;
++	const char *fmt;
++};
++
++int find_closest_level(const struct level levels[], const int len, const size_t value);
++
++#endif
+diff --git a/slstatus.h b/slstatus.h
+index 8ef5874..fed591b 100644
+--- a/slstatus.h
++++ b/slstatus.h
+@@ -4,6 +4,7 @@
+ const char *battery_perc(const char *);
+ const char *battery_remaining(const char *);
+ const char *battery_state(const char *);
++const char *battery_level(const char *);
+ 
+ /* cat */
+ const char *cat(const char *path);
+@@ -82,3 +83,4 @@ const char *vol_perc(const char *card);
+ /* wifi */
+ const char *wifi_essid(const char *interface);
+ const char *wifi_perc(const char *interface);
++const char *wifi_level(const char *interface);
+-- 
+2.45.2
+
