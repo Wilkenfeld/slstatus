@@ -106,5 +106,7 @@ const size_t wifi_levels_len = LEN(wifi_levels);
 static const struct arg args[] = {
 	/* function format          argument */
 	{ datetime, "%s",           "%F %T" },
+	{ wifi_level, " [%s", "wlp3s0"},
+	{ wifi_essid, " %s]", "wlp3s0"},
 	{ battery_level, "[%s]", "BAT0"},
 };
