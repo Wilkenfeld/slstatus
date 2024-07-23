@@ -1,0 +1,103 @@
+From d63f3802a18571c08b00aa1da97842012d74f5d0 Mon Sep 17 00:00:00 2001
+From: Wilkenfeld <pomiato.roberto@gmail.com>
+Date: Tue, 23 Jul 2024 18:16:52 +0200
+Subject: [PATCH] add wifi levels support
+
+---
+ components/wifi.c | 53 +++++++++++++++++++++++++++++++++++++++++++++++
+ config.def.h      |  2 ++
+ 2 files changed, 55 insertions(+)
+
+diff --git a/components/wifi.c b/components/wifi.c
+index 4543d32..7ba60d4 100644
+--- a/components/wifi.c
++++ b/components/wifi.c
+@@ -8,6 +8,7 @@
+ 
+ #include "../slstatus.h"
+ #include "../util.h"
++#include "../levels.h"
+ 
+ #define RSSI_TO_PERC(rssi) \
+ 			rssi >= -50 ? 100 : \
+@@ -19,6 +20,9 @@
+ 	#include <linux/wireless.h>
+ 
+ 	#define NET_OPERSTATE "/sys/class/net/%s/operstate"
++	
++	extern const struct level wifi_levels[];
++	extern const size_t wifi_levels_len;
+ 
+ 	const char *
+ 	wifi_perc(const char *interface)
+@@ -96,6 +100,55 @@
+ 
+ 		return id;
+ 	}
++
++	const char *
++	wifi_level(const char *interface) {
++
++		int cur;
++		int lvl;
++		size_t i;
++		char *p, *datastart;
++		char path[PATH_MAX];
++		char status[5];
++		FILE *fp;
++
++		if (esnprintf(path, sizeof(path), NET_OPERSTATE, interface) < 0)
++			return NULL;
++		if (!(fp = fopen(path, "r"))) {
++			warn("fopen '%s':", path);
++			return NULL;
++		}
++		p = fgets(status, 5, fp);
++		fclose(fp);
++		if (!p || strcmp(status, "up\n") != 0)
++			return NULL;
++
++		if (!(fp = fopen("/proc/net/wireless", "r"))) {
++			warn("fopen '/proc/net/wireless':");
++			return NULL;
++		}
++
++		for (i = 0; i < 3; i++)
++			if (!(p = fgets(buf, sizeof(buf) - 1, fp)))
++				break;
++
++		fclose(fp);
++		if (i < 2 || !p)
++			return NULL;
++
++		if (!(datastart = strstr(buf, interface)))
++			return NULL;
++
++		datastart = (datastart+(strlen(interface)+1));
++		sscanf(datastart + 1, " %*d   %d  %*d  %*d\t\t  %*d\t   "
++		       "%*d\t\t%*d\t\t %*d\t  %*d\t\t %*d", &cur);
++
++		/* 70 is the max of /proc/net/wireless */
++		cur = (int)((float)cur / 70 * 100);
++		lvl = find_closest_level(wifi_levels, wifi_levels_len, cur);
++		
++		return bprintf(lvl >= 0 ? wifi_levels[lvl].fmt : "%d", cur);
++	}
+ #elif defined(__OpenBSD__)
+ 	#include <net/if.h>
+ 	#include <net/if_media.h>
+diff --git a/config.def.h b/config.def.h
+index a0bca46..68d402e 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -106,5 +106,7 @@ const size_t wifi_levels_len = LEN(wifi_levels);
+ static const struct arg args[] = {
+ 	/* function format          argument */
+ 	{ datetime, "%s",           "%F %T" },
++	{ wifi_level, " [%s", "wlp3s0"},
++	{ wifi_essid, " %s]", "wlp3s0"},
+ 	{ battery_level, "[%s]", "BAT0"},
+ };
+-- 
+2.45.2
+

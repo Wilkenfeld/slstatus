@@ -1,0 +1,98 @@
+From 3f71b2c70c11c5486b8e65cb59fc2ba95da80748 Mon Sep 17 00:00:00 2001
+From: Wilkenfeld <pomiato.roberto@gmail.com>
+Date: Tue, 23 Jul 2024 18:00:05 +0200
+Subject: [PATCH] add length for levels arrays
+
+---
+ components/battery.c | 16 +++++++++-------
+ config.def.h         | 23 +++++++++++++----------
+ 2 files changed, 22 insertions(+), 17 deletions(-)
+
+diff --git a/components/battery.c b/components/battery.c
+index 0b120dc..424d131 100644
+--- a/components/battery.c
++++ b/components/battery.c
+@@ -22,7 +22,9 @@
+ 	#define POWER_SUPPLY_POWER    "/sys/class/power_supply/%s/power_now"
+ 
+ 	extern const struct level battery_levels[];
++	extern const size_t battery_levels_len;
+ 	extern const struct level charging_battery_levels[];
++	extern const size_t charging_battery_levels_len;
+ 
+ 	static const char *
+ 	pick(const char *bat, const char *f1, const char *f2, char *path,
+@@ -125,18 +127,18 @@
+ 			return NULL;
+ 		if (pscanf(path, "%12[a-zA-Z ]", state) != 1)
+ 			return NULL;
+-
+ 		if (esnprintf(path, sizeof(path), POWER_SUPPLY_CAPACITY, bat) < 0)
+ 			return NULL;
+ 		if (pscanf(path, "%d", &cap_perc) != 1)
+ 			return NULL;
+ 
+-		if (!strcmp(state, "Charging"))
+-			i = find_closest_level(charging_battery_levels, sizeof(*charging_battery_levels), cap_perc);
+-		else
+-			i = find_closest_level(battery_levels, sizeof(*battery_levels), cap_perc);
+-		
+-		return bprintf(i >= 0 ? battery_levels[i].fmt : "%d", cap_perc);
++		if (!strcmp(state, "Charging")) {
++			i = find_closest_level(charging_battery_levels, charging_battery_levels_len, cap_perc);
++			return bprintf(i >= 0 ? charging_battery_levels[i].fmt : "%d", cap_perc);
++		} else {
++			i = find_closest_level(battery_levels, battery_levels_len, cap_perc);
++			return bprintf(i >= 0 ? battery_levels[i].fmt : "%d", cap_perc);
++		}
+ 	} 
+ #elif defined(__OpenBSD__)
+ 	#include <fcntl.h>
+diff --git a/config.def.h b/config.def.h
+index 0d98fab..a0bca46 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -77,20 +77,22 @@ const struct level battery_levels[] = {
+ 	{20,       "\U000f007b %d%%"},
+ 	{10,       "\U000f007a %d%%"}
+ };
++const size_t battery_levels_len = LEN(battery_levels);
+ 
+ const struct level charging_battery_levels[] = {
+ 	/* level   format */
+-	{100,      "\U000f0085"},
+-	{90,       "\U000f008b"},
+-	{80,       "\U000f008a"},
+-	{70,       "\U000f089e"},
+-	{60,       "\U000f0089"},
+-	{50,       "\U000f089d"},
+-	{40,       "\U000f0088"},
+-	{30,       "\U000f0087"},
+-	{20,       "\U000f0086"},
+-	{10,       "\U000f089c"}
++	{100,      "\U000f0085 %d%%"},
++	{90,       "\U000f008b %d%%"},
++	{80,       "\U000f008a %d%%"},
++	{70,       "\U000f089e %d%%"},
++	{60,       "\U000f0089 %d%%"},
++	{50,       "\U000f089d %d%%"},
++	{40,       "\U000f0088 %d%%"},
++	{30,       "\U000f0087 %d%%"},
++	{20,       "\U000f0086 %d%%"},
++	{10,       "\U000f089c %d%%"}
+ };
++const size_t charging_battery_levels_len = LEN(charging_battery_levels);
+ 
+ const struct level wifi_levels[] = {
+ 	{100, "\U000f0928"},
+@@ -99,6 +101,7 @@ const struct level wifi_levels[] = {
+ 	{25, "\U000f091f"}
+ 
+ };
++const size_t wifi_levels_len = LEN(wifi_levels);
+ 
+ static const struct arg args[] = {
+ 	/* function format          argument */
+-- 
+2.45.2
+
